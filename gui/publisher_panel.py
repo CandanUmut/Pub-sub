@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from . import api_client
+from .logbus import get_logger
 
 ORANGE = "#E07B39"
 GREEN = "#4CAF50"
@@ -14,6 +15,7 @@ GREY = "#7F8C8D"
 class PublisherPanel(ttk.LabelFrame):
     def __init__(self, master):
         super().__init__(master, text="Publisher", padding=10)
+        self._log = get_logger("publisher")
 
         self.state_var = tk.StringVar(value="STATE: DISCONNECTED")
         self.indicator = tk.Label(
@@ -41,21 +43,30 @@ class PublisherPanel(ttk.LabelFrame):
 
         # One-time init read of real state (not polling).
         try:
-            self._render(api_client.get_status())
-        except Exception:
+            state = api_client.get_status()
+            self._render(state)
+            self._log.info("Init read of /status -> %s (one-time, not polling).",
+                          state)
+        except Exception as exc:
             self._render("DISCONNECTED")
+            self._log.error("Init read of /status failed: %s. Is the backend "
+                           "running?", exc)
 
     def _on_connect(self):
+        self._log.info("Connect clicked -> publishing 'Connected' to broker.")
         try:
             self._render(api_client.publish_connect())
         except Exception as exc:
-            self.state_var.set(f"ERROR: {exc}")
+            self.state_var.set("ERROR (see log)")
+            self._log.error("Connect failed: %s", exc)
 
     def _on_disconnect(self):
+        self._log.info("Disconnect clicked -> publishing 'Disconnected' to broker.")
         try:
             self._render(api_client.publish_disconnect())
         except Exception as exc:
-            self.state_var.set(f"ERROR: {exc}")
+            self.state_var.set("ERROR (see log)")
+            self._log.error("Disconnect failed: %s", exc)
 
     def _render(self, state: str):
         """Update the indicator and emphasize the active button (R1.3)."""

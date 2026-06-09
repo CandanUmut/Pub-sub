@@ -88,6 +88,21 @@ SSE plumbing (subscribe / emit / no-replay / unsubscribe-cleanup).
 - Unsubscribe closes the client stream **and** the server drops that
   subscriber's queue (verified by `test_unsubscribe_stops_events`), so no
   further events reach it.
+- **Unsubscribe never freezes the UI.** Closing the SSE socket and joining the
+  reader thread happen on a short-lived teardown thread, so the click returns
+  in ~1 ms instead of blocking the Tk main thread for several seconds.
+
+### Activity log
+
+The bottom-right **Activity Log** panel has a **Show Logs** button that opens a
+live log window. Everything the panels do is logged through a central log bus
+(`gui/logbus.py`): subscribe/unsubscribe clicks, every HTTP request and its
+result, each SSE event received, stream open/close, and any errors (e.g. the
+backend being unreachable). The window shows the full history on open and then
+streams new lines, with errors in red and warnings in orange. Logs also go to
+the console. This makes the push-vs-pull behaviour easy to narrate: you can
+watch a Connect produce an `Event received` line while Subscribed, and produce
+nothing on the subscriber while Unsubscribed.
 
 ### Requirement traceability
 
