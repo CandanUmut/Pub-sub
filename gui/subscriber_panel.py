@@ -11,6 +11,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from . import api_client
+from .logbus import get_logger
 
 ORANGE = "#E07B39"
 GREEN = "#4CAF50"
@@ -19,6 +20,7 @@ GREEN = "#4CAF50"
 class SubscriberPanel(ttk.LabelFrame):
     def __init__(self, master):
         super().__init__(master, text="Subscriber", padding=10)
+        self._log = get_logger("subscriber")
 
         self._queue: "queue.Queue[str]" = queue.Queue()
         self._stream = api_client.SubscriberStream(self._enqueue)
@@ -48,22 +50,31 @@ class SubscriberPanel(ttk.LabelFrame):
                             wrap="word")
         self.text.pack(fill="both", expand=True)
 
+        self._log.info("Panel ready. Default mode: Unsubscribed (no stream "
+                       "open, so Connect/Disconnect produce no events here).")
+
     # -- background callback (runs off the main thread) --
     def _enqueue(self, event_text: str):
         self._queue.put(event_text)
 
     # -- subscription control --
     def _subscribe(self):
-        self._stream.start()
+        self._log.info("Subscribe clicked.")
+        started = self._stream.start()
+        if not started:
+            self._log.warning("Already subscribed; ignoring duplicate click.")
+            return
         self.status_var.set("Subscribed")
         self.subscribe_btn.config(state="disabled")
         self.unsubscribe_btn.config(state="normal")
         if not self._draining:
             self._draining = True
             self._drain_queue()
+        self._log.info("Now Subscribed. Live events will append to the box.")
 
     def _unsubscribe(self):
-        self._stream.stop()
+        self._log.info("Unsubscribe clicked.")
+        self._stream.stop()  # non-blocking; UI does not freeze
         self._draining = False
         if self._after_id is not None:
             self.after_cancel(self._after_id)
@@ -71,6 +82,8 @@ class SubscriberPanel(ttk.LabelFrame):
         self.status_var.set("Unsubscribed")
         self.subscribe_btn.config(state="normal")
         self.unsubscribe_btn.config(state="disabled")
+        self._log.info("Now Unsubscribed. Server will drop our queue; further "
+                       "Connect/Disconnect will not reach this panel.")
 
     # -- drain loop: the only writer to the text box, on the main thread --
     def _drain_queue(self):
@@ -89,6 +102,7 @@ class SubscriberPanel(ttk.LabelFrame):
         self.text.insert("end", f"> [{stamp}] {event_text}\n")
         self.text.see("end")
         self.text.config(state="disabled")
+        self._log.info("Appended event to Subscriber box: %s", event_text)
 
     def shutdown(self):
         self._stream.stop()

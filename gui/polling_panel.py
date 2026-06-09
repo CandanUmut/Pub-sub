@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from . import api_client
+from .logbus import get_logger
 
 ORANGE = "#E07B39"
 GREEN = "#4CAF50"
@@ -17,6 +18,7 @@ GREEN = "#4CAF50"
 class PollingPanel(ttk.LabelFrame):
     def __init__(self, master):
         super().__init__(master, text="Polling", padding=10)
+        self._log = get_logger("polling")
 
         self.check_btn = tk.Button(
             self, text="Check Status", bg=ORANGE, fg="white",
@@ -32,12 +34,16 @@ class PollingPanel(ttk.LabelFrame):
 
     def _on_check(self):
         """Single on-demand read. No background polling anywhere (R4.1/R4.4)."""
+        self._log.info("Check Status clicked -> on-demand pull of /status.")
         try:
             state = api_client.get_status()
         except Exception as exc:
             self._append(f"ERROR: {exc}")
+            self._log.error("Check Status failed: %s", exc)
             return
-        self._append("Connected" if state == "CONNECTED" else "Disconnected")
+        label = "Connected" if state == "CONNECTED" else "Disconnected"
+        self._append(label)
+        self._log.info("Polling shows: %s", label)
 
     def _append(self, line: str):
         stamp = time.strftime("%H:%M:%S")
